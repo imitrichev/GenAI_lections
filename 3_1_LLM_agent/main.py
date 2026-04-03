@@ -1,13 +1,13 @@
 # main.py
 
-from llm_agent.core import LLMAgent
+from llm_agent.core_v2 import LLMAgent
 
 def main():
     """Основная функция для запуска агента."""
     print("Простой LLM-агент с инструментами ('Калькулятор', 'Поиск в DuckDuckGo')")
     print("-" * 70)
 
-    agent = LLMAgent()
+    agent = LLMAgent(local = True)
 
     # Примеры запросов
     # query = "Сколько будет (5 + 3) * 2?"
@@ -20,7 +20,7 @@ def main():
     response = agent.process_query(query)
 
     print("\n" + "=" * 70)
-    print("🤖 Финальный ответ агента:\n")
+    print("Финальный ответ агента:\n")
     print(response)
     print("=" * 70)
 

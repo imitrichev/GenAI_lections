@@ -15,7 +15,7 @@ class LLMAgent:
     Основан на понятной структуре: Планирование -> Исполнение -> Ответ.
     """
 
-    def __init__(self, model: str = "tngtech/deepseek-r1t2-chimera:free"):
+    def __init__(self, model: str = "tngtech/deepseek-r1t2-chimera"):
         """
         Инициализирует агента.
         
@@ -40,22 +40,22 @@ class LLMAgent:
         """
         # Системный промпт, который объясняет агенту его роль и формат ответа
         system_prompt = f"""
-You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
+        You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
 
-Available tools:
-- **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
-- **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query.
+        Available tools:
+        - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
+        - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query.
 
-Your response MUST be ONLY a JSON object of the following format.
-If one or more tools are needed to answer, return JSON of this structure:
-{{
-  "plan": [
-    {{"action": "tool_name", "input": "some text to pass into tool"}},
-    ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
-  ]
-}}
-If no tool is needed, return an empty plan: {{"plan": []}}.
-"""
+        Your response MUST be ONLY a JSON object of the following format.
+        If one or more tools are needed to answer, return JSON of this structure:
+        {{
+        "plan": [
+            {{"action": "tool_name", "input": "some text to pass into tool"}},
+            ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
+        ]
+        }}
+        If no tool is needed, return an empty plan: {{"plan": []}}.
+        """
 
         # Формируем и отправляем запрос к API Openrouter
         payload = {
@@ -139,26 +139,26 @@ Conversation Log:
         Основной метод для обработки запроса пользователя.
         Следует вашей четкой структуре: План -> Исполнение -> Ответ.
         """
-        print("🤖 Агент анализирует ваш запрос...")
+        print("Агент анализирует ваш запрос...")
         
         # --- Шаг 1: Планирование ---
         plan = self._ask_llm_for_plan(query)
 
         if not plan:
-            print("📋 Инструменты не требуются. Генерирую ответ напрямую.")
+            print("Инструменты не требуются. Генерирую ответ напрямую.")
             # Можно вызвать LLM для прямого ответа или просто вернуть заглушку
             return "Для выполнения этого запроса мне не потребовались специальные инструменты."
 
         # --- Шаг 2: Исполнение плана ---
-        print(f"📋 План действий: {plan}")
+        print(f"План действий: {plan}")
         for step in plan:
             tool_name = step.get('action')
             tool_input = step.get('input')
 
             if tool_name in self.tools:
-                print(f"⚙️ Выполняется инструмент: '{tool_name}'")
+                print(f"Выполняется инструмент: '{tool_name}'")
                 result = self.tools[tool_name].use(tool_input)
-                print(f"✅ Результат: {result[:100]}...")
+                print(f"Результат: {result[:100]}...")
                 
                 # Добавляем результат в историю, как в вашем примере
                 self.conversation_history.append({
@@ -171,6 +171,6 @@ Conversation Log:
                 self.conversation_history.append({'role': 'system', 'content': error_msg})
         
         # --- Шаг 3: Генерация финального ответа ---
-        print("🤖 Составляю финальный ответ...")
+        print("Составляю финальный ответ...")
         final_response = self._generate_final_response(query)
         return final_response
