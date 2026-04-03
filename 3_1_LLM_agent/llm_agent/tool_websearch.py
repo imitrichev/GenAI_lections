@@ -1,6 +1,6 @@
 # llm_agent/tool_websearch.py
 
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 class WebSearchTool:
     """Инструмент для поиска информации в интернете с помощью DuckDuckGo."""
@@ -19,7 +19,7 @@ class WebSearchTool:
             with DDGS() as ddgs:
                 # Теперь используем специальный источник 'news' для новостей,
                 # он часто дает более длинные тексты, чем стандартный 'text'
-                search_results = list(ddgs.text(query, backend="news", max_results=5))
+                search_results = list(ddgs.text(query, max_results=10)) #backend="news"
 
             if not search_results:
                 return f"По запросу '{query}' ничего не найдено."
@@ -32,8 +32,8 @@ class WebSearchTool:
                 body = result.get('body', 'Нет описания')
 
                 # Убираем слишком длинные тексты, чтобы не перегружать модель
-                if len(body) > 800:
-                    body = body[:800] + "..."
+                if len(body) > 1200:
+                    body = body[:1200] + "..."
 
                 summaries.append(f"**{i}. {title}**\n{body}\n")
                 print(f"> Обработана статья {i}: {title[:50]}...")
