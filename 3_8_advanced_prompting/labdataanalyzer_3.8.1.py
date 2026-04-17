@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 import requests
+from decouple import config
 
 class LabDataAnalyzer:
     """Анализ лабораторных данных с визуализацией"""
@@ -40,7 +41,7 @@ class LabDataAnalyzer:
         """
         return raw_data
     
-    def query_llm(self, prompt):
+    def query_llm(self, prompt, conversation_history=None):
         """Запрос к LLM"""
         if self.llm_api == "ollama":
             response = requests.post(
@@ -49,8 +50,49 @@ class LabDataAnalyzer:
             )
             return response.json().get("response", "")
         else:
-            # Для простоты демо возвращаем заглушку
-            return "Ответ LLM: Данные проанализированы успешно."
+            OPENROUTER_KEY = config('OPENROUTER_API_KEY')
+            OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+            OPENROUTER_MODEL = "qwen/qwen3-coder-next"
+
+            """Запрос к OpenRouter с поддержкой контекста"""
+            try:
+                headers = {
+                    "Authorization": f"Bearer {OPENROUTER_KEY}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Формируем историю сообщений
+                messages = []
+                if conversation_history:
+                    for i, msg in enumerate(conversation_history[-5:]):  # Последние 5
+                        role = "user" if i % 2 == 0 else "assistant"
+                        messages.append({"role": role, "content": msg})
+                
+                messages.append({"role": "user", "content": prompt})
+                
+                data = {
+                    "model": OPENROUTER_MODEL,
+                    "messages": messages,
+                    "temperature": 0.3
+                }
+                
+                response = requests.post(
+                    OPENROUTER_URL,
+                    headers=headers,
+                    json=data,
+                    timeout=60
+                )
+                
+                if response.status_code == 200:
+                    print(response.json()["choices"][0]["message"]["content"])
+                    print(response.status_code)
+                    return response.json()["choices"][0]["message"]["content"]
+                else:
+                    print(response.status_code)
+                return ""
+            except:
+                print(response.status_code)
+                return ""
     
     def structure_raw_data(self, raw_data):
         """Шаг 1: Структурирование сырых данных"""
@@ -140,7 +182,7 @@ class LabDataAnalyzer:
         
         # 95% доверительные интервалы
         n = len(sizes)
-        t_value = stats.t.ppf(0.975, n-1)  # t-критерий для 95% ДИ
+        t_value = stats.t.ppf(0.95, n-1)  # t-критерий для 95% ДИ
         
         size_ci = t_value * size_std / np.sqrt(n)
         yield_ci = t_value * yield_std / np.sqrt(n)
@@ -289,7 +331,7 @@ class LabDataAnalyzer:
         analysis_results, interpretation = self.analyze_data(structured_data)
         print(f"\n📊 Результаты анализа:")
         print(json.dumps(analysis_results, indent=2, ensure_ascii=False))
-        print(f"\n🤖 Интерпретация:\n{interpretation[:500]}...")
+        print(f"\n🤖 Интерпретация:\n{interpretation}")
         
         # Шаг 3: Визуализация
         fig = self.visualize_results(structured_data, analysis_results)
@@ -308,7 +350,7 @@ class LabDataAnalyzer:
         print("\n📝 Шаг 4: Генерация отчета...")
         
         prompt = f"""
-        Напиши краткий отчет об эксперименте.
+        Напиши краткий отчет об эксперименте в markdown. ГОСТ, 14 пт, 1,5 интервал
         
         Данные эксперимента: {json.dumps(structured_data, ensure_ascii=False)}
         Результаты анализа: {json.dumps(analysis, ensure_ascii=False)}
@@ -326,12 +368,12 @@ class LabDataAnalyzer:
         
         report = self.query_llm(prompt)
         
-        with open('experiment_report.txt', 'w', encoding='utf-8') as f:
+        with open('experiment_report.md', 'w', encoding='utf-8') as f:
             f.write("ОТЧЕТ ПО ЭКСПЕРИМЕНТУ\n")
             f.write("="*50 + "\n\n")
             f.write(report)
         
-        print("✓ Отчет сохранен как 'experiment_report.txt'")
+        print("✓ Отчет сохранен как 'experiment_report.md'")
         return report
 
 # Запуск демонстрации
