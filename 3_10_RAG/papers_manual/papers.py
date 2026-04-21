@@ -34,7 +34,7 @@ class Config:
     CHROMA_DB = "./chroma_db"
     
     # Модель для эмбеддингов (локальная)
-    EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    EMBEDDING_MODEL = "multilingual-e5-small" # "all-MiniLM-L6-v2"
 
 # ============================================================================
 # РАБОТА С PDF
