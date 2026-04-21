@@ -378,5 +378,5 @@ class LabDataAnalyzer:
 
 # Запуск демонстрации
 if __name__ == "__main__":
-    analyzer = LabDataAnalyzer()
+    analyzer = LabDataAnalyzer(llm_api="openrouter")
     results = analyzer.run_full_analysis()

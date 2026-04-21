@@ -14,7 +14,7 @@ from decouple import config
 
 # Конфигурация
 class Config:
-    API_CHOICE = "ollama"  # "ollama" или "openrouter"
+    API_CHOICE = "openrouter"  # "ollama" или "openrouter"
     
     # Ollama
     OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -23,7 +23,7 @@ class Config:
     # OpenRouter
     OPENROUTER_KEY = config('OPENROUTER_API_KEY')
     OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-    OPENROUTER_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
+    OPENROUTER_MODEL = "qwen/qwen3-coder-next" # qwen/qwen3-next-80b-a3b-instruct:free
     
     # Папки
     IMAGES_FOLDER = "./perovskite_journals"
@@ -45,6 +45,9 @@ def ask_ollama(prompt, conversation_history=None):
             Config.OLLAMA_URL,
             json={
                 "model": Config.OLLAMA_MODEL,
+                "options": {
+                    "temperature": 0.2
+                },
                 "prompt": full_prompt,
                 "stream": False
             },
@@ -128,7 +131,7 @@ class PerovskiteJournalProcessor:
         Перовскиты - это материалы с формулами типа La0.5Sr0.5MnO3, BaTiO3, SrTiO3.
         
         Текст:
-        {text}  # Ограничиваем текст для скорости
+        {text}
         
         Найди все химические формулы перовскитов. Верни ТОЛЬКО JSON список формул:
         {{"perovskites": ["формула1", "формула2", ...]}}
@@ -157,7 +160,7 @@ class PerovskiteJournalProcessor:
         # Шаг 2: Для каждого перовскита найти температуру и время спекания
         results = []
         
-        for perovskite in perovskites[:3]:  # Ограничиваем 3 перовскитами для демо
+        for perovskite in perovskites:
             prompt2 = f"""
             Для ОДНОГО перовскита {perovskite} найди температуру спекания и время спекания.
             
@@ -195,7 +198,7 @@ class PerovskiteJournalProcessor:
                 # Очищаем данные
                 perovskite_formula = data.get("perovskite", "").strip()
                 temperature = data.get("sintering_temperature", "не указано").replace('°C', '').strip()
-                time = data.get("sintering_time", "не указано").replace('часов', '').replace('ч', '').strip()
+                time = data.get("sintering_time", "не указано").replace('часов', '').replace('часа', '').replace('час', '').replace('ч', '').strip()
                 
                 if perovskite_formula and temperature != "не указано":
                     results.append({
