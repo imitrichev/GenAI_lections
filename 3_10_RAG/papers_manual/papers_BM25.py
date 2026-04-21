@@ -1,8 +1,3 @@
-"""
-Упрощённая RAG-система для поиска в PDF документах
-Работает с Ollama (локально) или OpenRouter
-"""
-
 import os
 import re
 import requests
@@ -11,6 +6,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 import fitz  # PyMuPDF
 from decouple import config
+from rank_bm25 import BM25Okapi  # NEW: BM25 reranking
 
 # ============================================================================
 # НАСТРОЙКИ
@@ -19,22 +15,26 @@ from decouple import config
 class Config:
     # Выбор API: "ollama" или "openrouter"
     API_CHOICE = "openrouter"  # поменяйте при необходимости
-    
+
     # Настройки Ollama
     OLLAMA_URL = "http://localhost:11434/api/generate"
     OLLAMA_MODEL = "qwen3:0.6b"
-    
+
     # Настройки OpenRouter (если нужно)
     OPENROUTER_KEY = config('OPENROUTER_API_KEY')
     OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
     OPENROUTER_MODEL = "qwen/qwen3-coder-next"
-    
+
     # Пути
     DATA_DIR = "./data/pdf"  # папка с PDF файлами
     CHROMA_DB = "./chroma_db"
-    
+
     # Модель для эмбеддингов (локальная)
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+    # NEW: Hybrid BM25 reranking config
+    BM25_WEIGHT = 0.5  # 0.0 = только Embedding, 1.0 = только BM25
+    HYBRID_ENABLED = True  # вкл/выкл гибридный режим
 
 # ============================================================================
 # РАБОТА С PDF
@@ -79,7 +79,11 @@ class VectorDB:
         
         # Создаём/загружаем базу
         self.client = chromadb.PersistentClient(path=Config.CHROMA_DB)
-        
+        self.bm25 = None  # NEW: BM25 index (для reranking)
+        self.corpus_texts = []  # NEW: тексты чанков в той же последовательности
+        self.bm25_tokenized = []  # NEW: токенизированные чанки для BM25
+        self.corpus_bm25_scores_cache = None  # NEW: кэш скоров BM25 для текущего запроса (не обязателен, можно перерасчитывать)
+
         try:
             self.collection = self.client.get_collection("documents", embedding_function=self.embedder)
             print("✓ База данных загружена")
@@ -87,14 +91,18 @@ class VectorDB:
             self.collection = self.client.create_collection(
                 name="documents",
                 embedding_function=self.embedder,
-                configuration={
+                 configuration={
                     "hnsw": {
                         "space": "cosine"
                     }
-                }
+                 }
             )
             print("✓ Создана новая база данных")
             self.load_documents()
+    
+    def _tokenize_text(self, text):
+        # Простая токенизация: lowercased by words
+        return text.lower().split()
     
     def load_documents(self):
         """Загружает все PDF из папки в базу"""
@@ -140,6 +148,14 @@ class VectorDB:
                 ids=all_ids
             )
             print(f"✓ Загружено {len(all_chunks)} текстовых фрагментов")
+
+            # NEW: Build BM25 index for reranking on top of embedding search
+            # Tokenize corpus for BM25
+            self.corpus_texts = all_chunks
+            self.bm25_tokenized = [c.split() for c in all_chunks]
+            if self.bm25_tokenized:
+                self.bm25 = BM25Okapi(self.bm25_tokenized)
+                print("✓ BM25 индекс создан для гибридного поиска")
     
     def search(self, query, n_results=5):
         """Ищет похожие тексты"""
@@ -154,15 +170,63 @@ class VectorDB:
             for i in range(len(results['documents'][0])):
                 doc = results['documents'][0][i]
                 meta = results['metadatas'][0][i]
-                score = 1 - results['distances'][0][i] if results['distances'] else 1.0
+                score_embed = 1 - results['distances'][0][i] if results['distances'] else 1.0
                 
                 formatted.append({
                     "text": doc, #doc[:500] + "..." if len(doc) > 500 else doc,
                     "file": meta.get("file", "unknown"),
-                    "score": round(score, 3)
+                    "chunk": meta.get("chunk", None),
+                    "emb_score": score_embed
                 })
             
-            return formatted
+            # NEW: BM25 reranking (hybrid)
+            if Config.HYBRID_ENABLED and self.bm25 is not None and self.corpus_texts:
+                # Prepare BM25 scores for the query against entire corpus
+                q_tokens = self._tokenize_text(query)
+                bm25_scores = self.bm25.get_scores(q_tokens)  # aligned to corpus_texts
+                max_bm25 = max(bm25_scores) if len(bm25_scores) > 0 else 1.0
+
+                # Compute hybrid score for each result, then sort by it
+                hybrid_results = []
+                for idx, item in enumerate(formatted):
+                    chunk_idx = (item["chunk"] - 1) if isinstance(item.get("chunk"), int) else None
+                    if chunk_idx is not None and 0 <= chunk_idx < len(bm25_scores):
+                        bm25_score_norm = bm25_scores[chunk_idx] / (max_bm25 + 1e-9)
+                    else:
+                        bm25_score_norm = 0.0
+
+                    emb_score = item.get("emb_score", 0.0)
+                    final_score = (Config.BM25_WEIGHT * bm25_score_norm) + ((1.0 - Config.BM25_WEIGHT) * emb_score)
+
+                    hybrid_results.append({
+                        "text": item["text"],
+                        "file": item["file"],
+                        "chunk": item.get("chunk"),
+                        "emb_score": emb_score,
+                        "bm25_score_norm": bm25_score_norm,
+                        "score": final_score
+                    })
+
+                # Sort by hybrid score (desc)
+                hybrid_results.sort(key=lambda x: x["score"], reverse=True)
+
+                # Return in the expected format
+                return [
+                    {"text": r["text"], "file": r["file"], "score": round(r["score"], 3)}
+                    for r in hybrid_results
+                ]
+
+            # If hybrid not enabled or BM25 not available, return embedding-based results
+            for i in range(len(formatted)):
+                formatted[i]["score"] = round(formatted[i].get("emb_score", 0.0), 3)
+
+            # Fallback: sort by embedding score (already in order, but ensure sorting)
+            formatted.sort(key=lambda x: x["score"], reverse=True)
+
+            return [
+                {"text": r["text"], "file": r["file"], "score": r["score"]}
+                for r in formatted
+            ]
         except Exception as e:
             print(f"Ошибка поиска: {e}")
             return []
@@ -258,33 +322,15 @@ class SimpleRAG:
         context = "ИНФОРМАЦИЯ ИЗ ДОКУМЕНТОВ:\n\n"
         for i, result in enumerate(results):
             context += f"[Документ {i+1}, файл: {result['file']}]:\n"
-            context += result['text'] + "\n\n"
+            context += f"{result['text']}\n\n"
         
-        # Шаг 3: Создаём промпт
-        prompt = f"""{self.system_prompt()}
+        prompt = self.system_prompt() + "\n\n" + context + "\nПожалуйста, ответь на вопрос: " + question
 
-{context}
-
-ВОПРОС ПОЛЬЗОВАТЕЛЯ: {question}
-
-ОТВЕТЬ на вопрос, используя ТОЛЬКО информацию из документов выше.
-Если нужно — цитируй конкретные документы.
-Если информации недостаточно — скажи об этом.
-
-ОТВЕТ:"""
-        
         print(f"Использованный промпт: {prompt}")
-        # Шаг 4: Запрос к LLM
-        print("🤖 Генерация ответа...")
-        response = ask_llm(prompt)
         
-        # Шаг 5: Форматируем финальный ответ
-        final_response = f"{response}\n\n"
-        final_response += "📚 Использованные источники:\n"
-        for result in results:
-            final_response += f"• {result['file']} (релевантность: {result['score']})\n"
-        
-        return final_response
+        # Шаг 3: Ответ от LLM
+        answer = ask_llm(prompt)
+        return answer
 
 # ============================================================================
 # ЗАПУСК
@@ -341,3 +387,14 @@ if __name__ == "__main__":
     
     # Запускаем
     main()
+
+#Как использовать
+#- Установите зависимость:
+#  - pip install rank_bm25
+#- По умолчанию включен гибридный режим (HYBRID_ENABLED = True) и вес BM25_BM25_WEIGHT = 0.5. Чтобы полностью полагаться на векторное поиск, установите BM25_WEIGHT = 0.0 или HYBRID_ENABLED = False.
+#- Прогоните ваш код как обычно. При загрузке PDF будет построен BM25 индекс для reranking.
+
+#Объяснение
+#- Векторная часть остается как прежде: сначала выполняется поиск по эмбеддингам в ChromaDB.
+#- Новая часть: на основе BM25 рассчитывается релевантность фрагментов к запросу. BM25 scores нормализуются по текущему набору результатов (через max_score) и комбинируются с Embedding score в гибридный score.
+#- Результаты сортируются по гибридному score, возвращая наиболее релевантные фрагменты документов.
