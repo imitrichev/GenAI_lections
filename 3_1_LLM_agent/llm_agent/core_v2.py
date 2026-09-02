@@ -7,6 +7,7 @@ from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
+from .tool_audio_info import AudioInfoTool
 
 class LLMAgent:
     """
