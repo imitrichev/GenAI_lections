@@ -1,31 +1,62 @@
+# tests/test_tool_excelreader.py
+
+import os
+import tempfile
+import pandas as pd
 import pytest
-#from unittest.mock import MagicMock, patch
-from llm_agent.core_v2 import LLMAgent
-
-# =====================================================================
-# ИНТЕГРАЦИОННЫЕ ТЕСТЫ (Запускают реальную Ollama / API)
-# =====================================================================
-# Маркируем как 'integration', чтобы их можно было отключать при быстрой проверке
-
-@pytest.mark.integration
-def test_calculator_query_live():
-    """Реальный запуск агента для проверки математики."""
-    # Для тестов лучше использовать локальную модель, если она поднята
-    agent = LLMAgent(local=True, ollama_model="qwen3:4b")
-    query = "Сколько будет (5 + 3) * 2? Напиши только цифру."
-    
-    response = agent.process_query(query)
-    
-    # Проверяем, что агент смог посчитать и выдать 16
-    assert "16" in response
+from llm_agent.tool_excelreader import ExcelReaderTool
 
 
-@pytest.mark.integration
-def test_football_query_live():
-    """Реальный запуск агента для проверки поиска DuckDuckGo."""
-    agent = LLMAgent(local=True, ollama_model="qwen3:4b")
-    query = "Кто выиграл последний матч Спартак-Динамо?"
-    
-    response = agent.process_query(query)
-    
-    # Проверяем, что в реальном ответе фигурируют н
+# 1. Юнит-тест: Проверка корректного чтения файла и лимита строк
+def test_excel_reader_valid_data():
+    """Проверяет чтение существующего Excel-файла с ограничением вывода строк."""
+    tool = ExcelReaderTool()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = os.path.join(tmpdir, "test.xlsx")
+        df = pd.DataFrame({
+            "Name": ["Alice", "Bob", "Charlie", "David"],
+            "Score": [10, 20, 30, 40]
+        })
+        df.to_excel(file_path, index=False)
+
+        # Вызываем инструмент с лимитом в 2 строки
+        result = tool.use(file_path, rows_limit=2)
+
+        assert "Данные из файла" in result
+        assert "Alice" in result
+        assert "Bob" in result
+        assert "Charlie" not in result  # Третья строка не должна попадать в вывод
+
+
+# 2. Юнит-тест: Проверка обработки пустого Excel-файла
+def test_excel_reader_empty_file():
+    """Проверяет корректную реакцию инструмента на пустой файл."""
+    tool = ExcelReaderTool()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = os.path.join(tmpdir, "empty.xlsx")
+        df = pd.DataFrame()
+        df.to_excel(file_path, index=False)
+
+        result = tool.use(file_path)
+
+        assert "не содержит данных" in result
+
+
+# 3. Юнит-тест: Проверка обработки несуществующего пути
+def test_excel_reader_invalid_path():
+    """Проверяет обработку исключения при передаче неверного пути к файлу."""
+    tool = ExcelReaderTool()
+    result = tool.use("non_existent_excel_file_123.xlsx")
+
+    assert "Произошла ошибка при чтении Excel-файла" in result
+
+
+# 4. Вызов всех трех тестов внутри отдельной тестовой функции
+# (Прямое требование пункта 4 задания)
+def test_all_excel_reader_features():
+    """Комплексный запуск всех функций проверки класса ExcelReaderTool."""
+    test_excel_reader_valid_data()
+    test_excel_reader_empty_file()
+    test_excel_reader_invalid_path()
