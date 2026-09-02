@@ -5,6 +5,7 @@ import json
 from typing import List, Dict, Optional
 from decouple import config
 
+from .tool_http_request import HTTPRequestTool
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
 
@@ -42,6 +43,7 @@ class LLMAgent:
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
+            "http_request": HTTPRequestTool(),
         }
         self.conversation_history = []
     
@@ -87,6 +89,11 @@ class LLMAgent:
         Available tools:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+        - **http_request**: For performing HTTP GET or POST requests.
+  Input format:
+  "GET https://example.com"
+  or
+  "POST https://example.com {\"key\": \"value\"}".
 
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
