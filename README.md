@@ -6,8 +6,8 @@ CC BY / MIT LICENSE
 
 ## Лабораторная работа 1 — вариант 9: `QRCodeTool`
 
-![QRCodeTool tests](https://github.com/nedreynerr/GenAI_lections/actions/workflows/qrcode-tool.yml/badge.svg)
-![Code Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nedreynerr/GIST_ID/raw/GenAI_lections_qrcode_coverage.json)
+![QRCodeTool tests](https://github.com/nedreyner/GenAI_lections/actions/workflows/qrcode-tool.yml/badge.svg)
+![Code Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nedreyner/GIST_ID/raw/GenAI_lections_qrcode_coverage.json)
 
 Инструмент [`QRCodeTool`](3_1_LLM_agent/llm_agent/tool_qrcode.py) генерирует QR-код
 из текста и либо сохраняет его в файл, либо возвращает base64-строку с PNG.
