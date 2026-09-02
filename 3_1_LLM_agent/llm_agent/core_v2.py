@@ -7,6 +7,7 @@ from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
+from .geocoding_tool import GeocodingTool
 
 class LLMAgent:
     """
@@ -42,6 +43,7 @@ class LLMAgent:
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
+            "geocoding": GeocodingTool(),
         }
         self.conversation_history = []
     
