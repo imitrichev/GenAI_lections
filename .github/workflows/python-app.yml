@@ -25,18 +25,30 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install pytest pytest-cov pytest-mock python-decouple
+        # Устанавливаем зависимости из requirements.txt внутри папки 3_1_LLM_agent
+        if [ -f 3_1_LLM_agent/requirements.txt ]; then 
+          pip install -r 3_1_LLM_agent/requirements.txt
+        fi
+        # Устанавливаем тестовые зависимости
+        pip install pytest pytest-cov pytest-mock python-decouple requests duckduckgo-search
     
-    - name: Check Python path
+    - name: Check directory structure
       run: |
-        python -c "import sys; print(sys.path)"
+        echo "=== Root directory ==="
         ls -la
+        echo "=== 3_1_LLM_agent directory ==="
+        ls -la 3_1_LLM_agent/
+        echo "=== 3_1_LLM_agent/llm_agent directory ==="
+        ls -la 3_1_LLM_agent/llm_agent/ || echo "llm_agent folder not found"
+        echo "=== 3_1_LLM_agent/tests directory ==="
+        ls -la 3_1_LLM_agent/tests/ || echo "tests folder not found"
     
     - name: Run unit tests (skip integration)
       run: |
+        # Переходим в папку 3_1_LLM_agent и запускаем тесты
+        cd 3_1_LLM_agent
         # Запускаем только юнит-тесты (без интеграционных)
-        pytest 3_1_LLM_agent/tests/ -v -m "not integration" --cov=3_1_LLM_agent/llm_agent --cov-report=xml --cov-report=term || true
+        pytest tests/ -v -m "not integration" --cov=./llm_agent --cov-report=xml --cov-report=term || true
     
     - name: Upload coverage to Codecov (optional)
       uses: codecov/codecov-action@v4
