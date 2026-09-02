@@ -1,0 +1,51 @@
+{
+  "session_id": "20260902_215028",
+  "total_logs": 4,
+  "logs": [
+    {
+      "timestamp": "2026-09-02T21:50:28.164010",
+      "session_id": "20260902_215028",
+      "event_type": "USER_REQUEST",
+      "data": {
+        "query": "Сколько будет 125 умножить на 4?",
+        "metadata": {}
+      }
+    },
+    {
+      "timestamp": "2026-09-02T21:50:42.072910",
+      "session_id": "20260902_215028",
+      "event_type": "ACTION_PLAN",
+      "data": {
+        "plan": [
+          {
+            "action": "calculator",
+            "input": "125 * 4"
+          }
+        ],
+        "steps_count": 1,
+        "metadata": {}
+      }
+    },
+    {
+      "timestamp": "2026-09-02T21:50:42.077447",
+      "session_id": "20260902_215028",
+      "event_type": "TOOL_EXECUTION",
+      "data": {
+        "tool_name": "calculator",
+        "input": "125 * 4",
+        "result": "Результат вычисления '125 * 4': 500",
+        "metadata": {}
+      }
+    },
+    {
+      "timestamp": "2026-09-02T21:50:50.159559",
+      "session_id": "20260902_215028",
+      "event_type": "FINAL_RESPONSE",
+      "data": {
+        "response": "Результат вычисления «125 × 4» — это 500.",
+        "response_length": 41,
+        "metadata": {}
+      }
+    }
+  ]
+}
