@@ -7,7 +7,7 @@ CC BY / MIT LICENSE
 ## Лабораторная работа 1 — вариант 9: `QRCodeTool`
 
 ![QRCodeTool tests](https://github.com/nedreyner/GenAI_lections/actions/workflows/qrcode-tool.yml/badge.svg)
-![Code Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nedreyner/GIST_ID/raw/GenAI_lections_qrcode_coverage.json)
+![Code Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nedreyner/617cd915b249c9b163b19aee8e498020/raw/GenAI_lections_qrcode_coverage.json)
 
 Инструмент [`QRCodeTool`](3_1_LLM_agent/llm_agent/tool_qrcode.py) генерирует QR-код
 из текста и либо сохраняет его в файл, либо возвращает base64-строку с PNG.
@@ -36,7 +36,7 @@ pip install -r requirements.txt
 PYTHONPATH=. python -m pytest tests/test_tool_qrcode.py -v
 ```
 
-Бэйджик покрытия обновляется через gist: в настройках репозитория нужны секреты
-`GIST_SECRET` (токен со scope `gist`) и `GIST_ID` (идентификатор gist),
-а в ссылке на бэйджик выше `GIST_ID` заменяется на этот же идентификатор.
-Shields.io кеширует бэйджик ~5 минут.
+Бэйджик покрытия обновляется через gist
+[617cd915b249c9b163b19aee8e498020](https://gist.github.com/nedreyner/617cd915b249c9b163b19aee8e498020):
+id гиста прописан прямо в воркфлоу, а в секретах репозитория нужен только
+`GIST_SECRET` — токен со scope `gist`. Shields.io кеширует бэйджик ~5 минут.

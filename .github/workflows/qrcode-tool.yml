@@ -74,13 +74,15 @@ jobs:
         echo "COVERAGE=$COVVALUE" >> $GITHUB_ENV
 
     - name: Create the badge
-      if: github.event_name == 'push' && env.GIST_ID != ''
+      # id гиста не является секретом, а вот токен со scope 'gist' лежит
+      # в secrets.GIST_SECRET. Без него шаг просто пропускается.
+      if: github.event_name == 'push' && env.GIST_SECRET != ''
       env:
-        GIST_ID: ${{ secrets.GIST_ID }}
+        GIST_SECRET: ${{ secrets.GIST_SECRET }}
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_SECRET }}
-        gistID: ${{ secrets.GIST_ID }}
+        gistID: 617cd915b249c9b163b19aee8e498020
         filename: GenAI_lections_qrcode_coverage.json
         label: QRCodeTool coverage
         message: ${{ env.COVERAGE }}
