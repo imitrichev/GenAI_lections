@@ -1,6 +1,8 @@
 # main.py
 
-from llm_agent.core_v2 import LLMAgent
+from fallback_model import FallbackModel
+from fallback_llm_agent import FallbackLLMAgent
+# from llm_agent.core_v2 import LLMAgent
 
 def main():
     """Основная функция для запуска агента."""
@@ -9,7 +11,12 @@ def main():
 
     #agent = LLMAgent(model = "qwen/qwen3-next-80b-a3b-instruct:free")
 
-    agent = LLMAgent(local = True, ollama_model = "qwen3:4b") #ollama_base_url = "10.10.34.24:5678"
+    # agent = LLMAgent(local = True, ollama_model = "qwen3:4b") #ollama_base_url = "10.10.34.24:5678"
+    fallback = FallbackModel(
+        openrouter_model="openai/gpt-5.4-nano",
+        ollama_model="hf.co/unsloth/Qwen3.5-4B-GGUF:Q4_K_S")
+
+    agent = FallbackLLMAgent(fallback_model=fallback)
 
     #agent = LLMAgent(model = "gpt-5.4-mini")
     #agent = LLMAgent(model = "grok4.1-fast")
