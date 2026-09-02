@@ -1,7 +1,8 @@
-# 3_1_LLM_agent/requirements.txt
 requests
 python-decouple
 ddgs
 pytest
 pypdf
 pdfplumber
+pandas
+openpyxl  # для чтения Excel файлов (pandas использует его как движок)
