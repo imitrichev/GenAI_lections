@@ -1,5 +1,24 @@
-# 3_1_LLM_agent/requirements.txt
-requests
-python-decouple
-duckduckgo-search
-pytest
+# Основные зависимости для работы агента
+requests>=2.28.0
+python-decouple>=3.8
+duckduckgo-search>=4.0.0
+
+# Зависимости для тестирования
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Дополнительные зависимости (если используются в core_v2.py)
+# Если используете OpenAI API
+openai>=1.0.0
+
+# Если используете Ollama через API
+httpx>=0.24.0
+
+# Для работы с аудио (если используется tool_audio_info.py)
+pydub>=0.25.1
+ffmpeg-python>=0.2.0
+
+# Для веб-поиска (альтернатива duckduckgo-search)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
