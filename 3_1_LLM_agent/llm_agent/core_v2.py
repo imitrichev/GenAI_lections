@@ -1,12 +1,51 @@
 # llm_agent/core.py
 
-import requests
 import json
+from dataclasses import dataclass
 from typing import List, Dict, Optional
-from decouple import config
 
-from .tool_calculator import CalculatorTool
-from .tool_websearch import WebSearchTool
+import requests
+
+from tools.tool_calculator import CalculatorTool
+from tools.tool_spell_checker import SpellCheckerTool
+from tools.tool_websearch import WebSearchTool
+
+
+# from decouple import config
+
+@dataclass
+class ProviderConfig:
+    """
+    Конфигурация LLM-провайдера (OpenRouter или Ollama).
+    Вся логика выбора URL, модели и заголовков — здесь.
+    """
+    url: str
+    model: str
+    api_key: Optional[str] = None
+    stream: bool = False
+
+    @classmethod
+    def openrouter(cls, model: str, api_key: Optional[str] = None) -> "ProviderConfig":
+        return cls(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            model=model,
+            api_key=api_key,
+            stream=False,
+        )
+
+    @classmethod
+    def ollama(cls, base_url: str, model: str) -> "ProviderConfig":
+        return cls(
+            url=f"{base_url}/v1/chat/completions",
+            model=model,
+            api_key=None,
+            stream=True,
+        )
+
+    @property
+    def is_local(self) -> bool:
+        return self.api_key is None
+
 
 class LLMAgent:
     """
@@ -14,34 +53,20 @@ class LLMAgent:
     Поддерживает как OpenRouter API, так и локальный Ollama.
     """
 
-    def __init__(self, model: str = "tngtech/deepseek-r1t2-chimera", local: bool = False, 
-                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen3:0.6b"):
+    def __init__(self, provider: ProviderConfig):
         """
         Инициализирует агента.
         
         Args:
-            model (str): Название модели для OpenRouter.
-            local (bool): Если True, использует локальный Ollama вместо OpenRouter.
-            ollama_base_url (str): Базовый URL для Ollama API.
-            ollama_model (str): Название модели в Ollama.
+            provider (ProviderConfig): Конфигурация LLM-провайдера.
         """
-        self.local = local
-        self.ollama_base_url = ollama_base_url
-        self.ollama_model = ollama_model
-        
-        if not self.local:
-            self.api_key = config('OPENROUTER_API_KEY')
-            self.url = "https://openrouter.ai/api/v1/chat/completions"
-            self.model = model
-        else:
-            self.api_key = None
-            self.url = f"{self.ollama_base_url}/v1/chat/completions"
-            self.model = ollama_model
+        self.provider = provider
         
         # Создаем экземпляры инструментов
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
+            "spell_check": SpellCheckerTool(),
         }
         self.conversation_history = []
     
@@ -60,16 +85,12 @@ class LLMAgent:
         if headers is None:
             headers = {}
         
-        if not self.local:
-            headers.update({
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            })
-        else:
-            headers["Content-Type"] = "application/json"
+        headers["Content-Type"] = "application/json"
+        if self.provider.api_key:
+            headers["Authorization"] = f"Bearer {self.provider.api_key}"
         
         try:
-            response = requests.post(self.url, json=payload, headers=headers)
+            response = requests.post(self.provider.url, json=payload, headers=headers)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -87,6 +108,7 @@ class LLMAgent:
         Available tools:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+        - **spell_check**: For checking spelling of text. Use it with the text that needs spell checking. Supports Russian and English languages.
 
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
@@ -101,7 +123,7 @@ class LLMAgent:
 
         # Формируем запрос к API
         payload = {
-            "model": self.model,
+            "model": self.provider.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query}
@@ -109,9 +131,7 @@ class LLMAgent:
         }
         
         try:
-            # Для Ollama может потребоваться дополнительная настройка
-            if self.local:
-                # Некоторые модели Ollama могут требовать параметр stream=False
+            if self.provider.stream:
                 payload["stream"] = False
             
             response_data = self._make_api_request(payload)
@@ -164,11 +184,11 @@ class LLMAgent:
         """
         
         payload = {
-            "model": self.model,
+            "model": self.provider.model,
             "messages": [{"role": "user", "content": prompt}]
         }
         
-        if self.local:
+        if self.provider.stream:
             payload["stream"] = False
         
         try:
@@ -182,7 +202,7 @@ class LLMAgent:
         """
         Основной метод для обработки запроса пользователя.
         """
-        print(f"Агент анализирует ваш запрос... (Режим: {'локальный Ollama' if self.local else 'OpenRouter'})")
+        print(f"Агент анализирует ваш запрос... (Режим: {'локальный Ollama' if self.provider.is_local else 'OpenRouter'})")
         
         # --- Шаг 1: Планирование ---
         plan = self._ask_llm_for_plan(query)
@@ -192,10 +212,10 @@ class LLMAgent:
             # Генерируем прямой ответ через LLM
             direct_prompt = f"Ответьте на следующий вопрос кратко и информативно: {query}"
             payload = {
-                "model": self.model,
+                "model": self.provider.model,
                 "messages": [{"role": "user", "content": direct_prompt}]
             }
-            if self.local:
+            if self.provider.stream:
                 payload["stream"] = False
             try:
                 response_data = self._make_api_request(payload)
@@ -236,12 +256,12 @@ class LLMAgent:
         Returns:
             bool: True если соединение успешно, иначе False.
         """
-        if not self.local:
+        if not self.provider.is_local:
             return False
         
         try:
-            # Проверяем доступность Ollama API
-            test_url = f"{self.ollama_base_url}/v1/models"
+            base_url = self.provider.url.rsplit("/v1/chat/completions", 1)[0]
+            test_url = f"{base_url}/v1/models"
             response = requests.get(test_url)
             return response.status_code == 200
         except:

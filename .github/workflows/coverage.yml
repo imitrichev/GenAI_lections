@@ -1,0 +1,43 @@
+name: Coverage Badge
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests with coverage
+        run: uv run pytest 3_1_LLM_agent/llm_agent_tests/ --cov=llm_agent.tools.tool_spell_checker --cov-report=term-missing --cov-report=xml
+
+      - name: Get coverage percentage
+        id: coverage
+        run: |
+          PCT=$(python -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('coverage.xml').getroot().attrib['line-rate']) * 100))")
+          echo "percentage=$PCT" >> "$GITHUB_OUTPUT"
+
+      - name: Update coverage badge Gist
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 04ceddcfc4dac22c10e87063d1130fea
+          filename: coverage.json
+          label: Test Coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          color: brightgreen
+          namedLogo: pytest
