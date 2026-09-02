@@ -7,6 +7,7 @@ from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
+from .tool_auditlogger import AuditLogger
 
 class LLMAgent:
     """
@@ -38,12 +39,17 @@ class LLMAgent:
             self.url = f"{self.ollama_base_url}/v1/chat/completions"
             self.model = ollama_model
         
-        # Создаем экземпляры инструментов
+        # Создаем экземпляры инструментов.
+        # audit_logger не упоминается в system-промпте (см. _ask_llm_for_plan),
+        # поэтому LLM не может выбрать его в плане как calculator/web_search —
+        # агент вызывает его напрямую для логирования каждого шага.
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
+            "audit_logger": AuditLogger(),
         }
         self.conversation_history = []
+        self.audit_logger = self.tools["audit_logger"]
     
     def _make_api_request(self, payload: Dict, headers: Optional[Dict] = None) -> Dict:
         """
@@ -183,9 +189,11 @@ class LLMAgent:
         Основной метод для обработки запроса пользователя.
         """
         print(f"Агент анализирует ваш запрос... (Режим: {'локальный Ollama' if self.local else 'OpenRouter'})")
-        
+        self.audit_logger.log_request(query)
+
         # --- Шаг 1: Планирование ---
         plan = self._ask_llm_for_plan(query)
+        self.audit_logger.log_plan(plan)
 
         if not plan:
             print("Инструменты не требуются. Генерирую ответ напрямую.")
@@ -199,9 +207,13 @@ class LLMAgent:
                 payload["stream"] = False
             try:
                 response_data = self._make_api_request(payload)
-                return response_data["choices"][0]["message"]["content"]
+                direct_response = response_data["choices"][0]["message"]["content"]
+                self.audit_logger.log_final_response(direct_response)
+                return direct_response
             except:
-                return "Извините, не удалось сгенерировать ответ."
+                direct_response = "Извините, не удалось сгенерировать ответ."
+                self.audit_logger.log_final_response(direct_response)
+                return direct_response
 
         # --- Шаг 2: Исполнение плана ---
         print(f"План действий: {plan}")
@@ -213,7 +225,8 @@ class LLMAgent:
                 print(f"Выполняется инструмент: '{tool_name}'")
                 result = self.tools[tool_name].use(tool_input)
                 print(f"Результат: {result}...")
-                
+                self.audit_logger.log_tool_result(tool_name, tool_input, result)
+
                 # Добавляем результат в историю
                 self.conversation_history.append({
                     'role': 'system',
@@ -222,11 +235,13 @@ class LLMAgent:
             else:
                 error_msg = f"Ошибка: инструмент с именем '{tool_name}' не найден."
                 print(error_msg)
+                self.audit_logger.log_tool_result(tool_name, tool_input, error_msg)
                 self.conversation_history.append({'role': 'system', 'content': error_msg})
-        
+
         # --- Шаг 3: Генерация финального ответа ---
         print("Составляю финальный ответ...")
         final_response = self._generate_final_response(query)
+        self.audit_logger.log_final_response(final_response)
         return final_response
 
     def test_ollama_connection(self) -> bool:

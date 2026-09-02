@@ -1,5 +1,6 @@
-# 3_1_LLM_agent/requirements.txt
 requests
 python-decouple
-duckduckgo-search
+ddgs
 pytest
+coverage
+coverage-badge

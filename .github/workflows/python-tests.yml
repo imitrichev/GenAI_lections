@@ -1,0 +1,106 @@
+name: Python Tests (3_1_LLM_agent)
+
+on:
+  push:
+    paths:
+      - '3_1_LLM_agent/**'
+      - '.github/workflows/python-tests.yml'
+  pull_request:
+    paths:
+      - '3_1_LLM_agent/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        working-directory: 3_1_LLM_agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests with coverage
+        working-directory: 3_1_LLM_agent
+        run: |
+          coverage run -m pytest tests/test_tool_auditlogger.py -v
+          coverage report -m
+
+      - name: Generate coverage badge
+        working-directory: 3_1_LLM_agent
+        run: coverage-badge -o coverage.svg -f
+
+      - name: Commit updated coverage badge
+        if: github.event_name == 'push'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update coverage badge [skip ci]"
+          file_pattern: 3_1_LLM_agent/coverage.svg
+
+  ollama-integration:
+    runs-on: ubuntu-latest
+    # qwen3.5 (6.6 GB) генерирует ответы на CPU-раннере без GPU заметно
+    # медленнее, чем на локальной машине — держим запас по времени.
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        working-directory: 3_1_LLM_agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Point Ollama at a cache-friendly models directory
+        run: echo "OLLAMA_MODELS=$HOME/.ollama/models" >> "$GITHUB_ENV"
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Stop auto-started Ollama service
+        run: sudo systemctl stop ollama 2>/dev/null || true
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-models-qwen3.5-v1
+
+      - name: Start Ollama server
+        run: |
+          mkdir -p "$OLLAMA_MODELS"
+          nohup ollama serve > ollama.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:11434 >/dev/null && echo "Ollama ready" && exit 0
+            sleep 2
+          done
+          echo "Ollama did not start in time"
+          cat ollama.log
+          exit 1
+
+      - name: Pull qwen3.5 model (skipped if already cached)
+        run: ollama pull qwen3.5
+
+      - name: Run LLMAgent integration tests against Ollama
+        working-directory: 3_1_LLM_agent
+        env:
+          OLLAMA_TEST_MODEL: qwen3.5
+        run: python -m pytest tests/test_llm_agent_ollama_integration.py -v
