@@ -74,3 +74,32 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pytest -v
         python main.py
+
+    - name: Run coverage
+      working-directory: ./3_1_LLM_agent
+      env:
+        PYTHONPATH: .
+      run: |
+        pip install coverage pytest-cov pypdf pdfplumber requests
+        coverage run -m unittest discover -s tests -p "test_*.py" -v
+        coverage report -m
+        coverage json
+
+    - name: Extract coverage percent
+      working-directory: ./3_1_LLM_agent
+      run: |
+        TOTAL=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
+        echo "total=$TOTAL" >> $GITHUB_ENV
+        echo "Coverage: ${TOTAL}%"
+
+    - name: Create Coverage Badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: c8dc3087e86f23873b54d5084269c7b7
+        filename: coverage.json
+        label: coverage
+        message: ${{ env.total }}%
+        valColorRange: ${{ env.total }}
+        minColorRange: 50
+        maxColorRange: 90
