@@ -41,9 +41,10 @@ class LLMAgent:
         
         # Создаем экземпляры инструментов
         self.tools = {
-            "calculator": CalculatorTool(),
-            "web_search": WebSearchTool(),
-        }
+    "calculator": CalculatorTool(),
+    "web_search": WebSearchTool(),
+    "audio_info": AudioInfoTool(),
+}
         self.conversation_history = []
     
     def _make_api_request(self, payload: Dict, headers: Optional[Dict] = None) -> Dict:
@@ -83,22 +84,27 @@ class LLMAgent:
         """
         # Системный промпт, который объясняет агенту его роль и формат ответа
         system_prompt = f"""
-        You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
+You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
 
-        Available tools:
-        - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
-        - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+Available tools:
+- **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
 
-        Your response MUST be ONLY a JSON object of the following format.
-        If one or more tools are needed to answer, return JSON of this structure:
-        {{
-        "plan": [
-            {{"action": "tool_name", "input": "some text to pass into tool"}},
-            ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
-        ]
-        }}
-        If no tool is needed, return an empty plan: {{"plan": []}}.
-        """
+- **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+
+- **audio_info**: For extracting information from audio files. Use it when the user asks about an audio file, such as its duration, bitrate, number of channels, sample rate or metadata. Pass the audio file path as the input.
+
+Your response MUST be ONLY a JSON object of the following format.
+
+If one or more tools are needed to answer, return JSON of this structure:
+{{
+"plan": [
+    {{"action": "tool_name", "input": "some text to pass into tool"}},
+    ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
+]
+}}
+
+If no tool is needed, return an empty plan: {{"plan": []}}.
+"""
 
         # Формируем запрос к API
         payload = {
