@@ -60,4 +60,3 @@ def test_all_excel_reader_features():
     test_excel_reader_valid_data()
     test_excel_reader_empty_file()
     test_excel_reader_invalid_path()
-
