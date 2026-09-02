@@ -1,33 +1,72 @@
-import pytest
-#from unittest.mock import MagicMock, patch
-from llm_agent.core_v2 import LLMAgent
+# tests/test_agent.py
+import unittest
+import os
+import sys
 
-# =====================================================================
-# ИНТЕГРАЦИОННЫЕ ТЕСТЫ (Запускают реальную Ollama / API)
-# =====================================================================
-# Маркируем как 'integration', чтобы их можно было отключать при быстрой проверке
+# Добавляем корень проекта в путь (чтобы импорты работали)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-@pytest.mark.integration
-def test_calculator_query_live():
-    """Реальный запуск агента для проверки математики."""
-    # Для тестов лучше использовать локальную модель, если она поднята
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Сколько будет (5 + 3) * 2? Напиши только цифру."
-    
-    response = agent.process_query(query)
-    
-    # Проверяем, что агент смог посчитать и выдать 16
-    assert "16" in response
+from llm_agent.tool_pdfinfo import PDFInfoTool
 
 
-@pytest.mark.integration
-def test_football_query_live():
-    """Реальный запуск агента для проверки поиска DuckDuckGo."""
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Кто выиграл последний матч Спартак-Динамо?"
-    
-    response = agent.process_query(query)
-    
-    # Проверяем, что в реальном ответе фигурируют названия команд
-    assert "Спартак" in response or "Spartak" in response
-    assert "Динамо" in response or "Dynamo" in response
+class TestPDFInfoTool(unittest.TestCase):
+    """Юнит-тесты для класса PDFInfoTool"""
+
+    def setUp(self):
+        """Создаём экземпляр инструмента перед каждым тестом"""
+        self.tool = PDFInfoTool()
+
+    def test_1_name_and_description(self):
+        """Тест 1: проверяем name и description"""
+        self.assertEqual(self.tool.name, "pdf_info")
+        self.assertIsInstance(self.tool.description, str)
+        self.assertTrue(len(self.tool.description) > 10)
+        self.assertIn("PDF", self.tool.description)
+
+    def test_2_nonexistent_file(self):
+        """Тест 2: обработка несуществующего локального файла"""
+        result = self.tool.use("/this/path/does/not/exist.pdf")
+        self.assertIsInstance(result, str)
+        self.assertTrue(
+            "ошибка" in result.lower() or "не найден" in result.lower() or "error" in result.lower()
+        )
+
+    def test_3_empty_input(self):
+        """Тест 3: пустой ввод"""
+        result = self.tool.use("")
+        self.assertIsInstance(result, str)
+        self.assertTrue("ошибка" in result.lower() or "error" in result.lower())
+
+    def test_4_invalid_url(self):
+        """Тест 4 (бонус): некорректный URL"""
+        result = self.tool.use("https://example.com/not-a-real-pdf")
+        self.assertIsInstance(result, str)
+        self.assertTrue(len(result) > 0)
+
+
+def run_all_tests():
+    """
+    Отдельная функция, которая запускает все тесты.
+    Требование задания: "вызвать их внутри отдельной тестовой функции"
+    """
+    print("=" * 60)
+    print("Запуск всех юнит-тестов PDFInfoTool")
+    print("=" * 60)
+
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestPDFInfoTool)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+
+    print("=" * 60)
+    if result.wasSuccessful():
+        print("Все тесты успешно пройдены!")
+    else:
+        print(f"Провалено тестов: {len(result.failures) + len(result.errors)}")
+    print("=" * 60)
+
+    return result.wasSuccessful()
+
+
+if __name__ == "__main__":
+    success = run_all_tests()
+    sys.exit(0 if success else 1)
