@@ -3,3 +3,5 @@ requests
 python-decouple
 duckduckgo-search
 pytest
+qrcode[pil]
+pytest-cov

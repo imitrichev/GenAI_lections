@@ -7,6 +7,7 @@ from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
+from .tool_qrcode import QRCodeTool
 
 class LLMAgent:
     """
@@ -42,6 +43,7 @@ class LLMAgent:
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
+            "qrcode": QRCodeTool(),
         }
         self.conversation_history = []
     
@@ -87,6 +89,7 @@ class LLMAgent:
         Available tools:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+        - **qrcode**: For generating a QR code from a text or a link. Input format: "text | path/to/file.png"; omit the path to get a base64 PNG string.
 
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
