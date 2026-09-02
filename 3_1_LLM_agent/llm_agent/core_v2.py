@@ -87,10 +87,12 @@ class LLMAgent:
         You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
 
         Available tools:
-        - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
-        - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
+        - **calculator**: For any math-related questions.
+        - **web_search**: For finding any information about the real world. USE ONLY RUSSIAN LANGUAGE QUERIES.
+        - **geocoding**: For getting coordinates of a place or finding a place by coordinates. 
+          Use format "coords: City Name" to get lat/lon, or "address: lat, lon" to get the name.
 
-        Your response MUST be ONLY a JSON object of the following format.
+        Your response MUST be ONLY a JSON object...
         If one or more tools are needed to answer, return JSON of this structure:
         {{
         "plan": [
