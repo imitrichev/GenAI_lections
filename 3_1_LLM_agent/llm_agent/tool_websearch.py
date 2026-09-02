@@ -1,6 +1,6 @@
 # llm_agent/tool_websearch.py
 
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 
 class WebSearchTool:
     """Инструмент для поиска информации в интернете с помощью DuckDuckGo."""

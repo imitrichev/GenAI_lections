@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
-from geocoding_tool import GeocodingTool
+from tool_geocoding import GeocodingTool
 
 class TestGeocodingTool(unittest.TestCase):
     def setUp(self):
         self.tool = GeocodingTool(user_agent="TestAgent/1.0")
 
-    @patch('geocoding_tool.requests.get')
+    @patch('tool_geocoding.requests.get')
     def test_use_coords_success(self, mock_get):
         mock_get.return_value.json.return_value = [{"lat": "55.7539", "lon": "37.6208"}]
         mock_get.return_value.raise_for_status = lambda: None
@@ -17,7 +17,7 @@ class TestGeocodingTool(unittest.TestCase):
         self.assertIn("55.7539", result)
         self.assertIn("37.6208", result)
 
-    @patch('geocoding_tool.requests.get')
+    @patch('tool_geocoding.requests.get')
     def test_use_address_success(self, mock_get):
         mock_get.return_value.json.return_value = {"display_name": "Красная площадь, Москва"}
         mock_get.return_value.raise_for_status = lambda: None

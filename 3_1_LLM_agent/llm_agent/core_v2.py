@@ -1,13 +1,14 @@
-# llm_agent/core.py
+# llm_agent/core.py (или core_v2.py)
 
 import requests
 import json
+import re
 from typing import List, Dict, Optional
 from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
-from .geocoding_tool import GeocodingTool
+from .tool_geocoding import GeocodingTool
 
 class LLMAgent:
     """
@@ -16,15 +17,9 @@ class LLMAgent:
     """
 
     def __init__(self, model: str = "tngtech/deepseek-r1t2-chimera", local: bool = False, 
-                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen3:0.6b"):
+                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen2.5:3b"):
         """
         Инициализирует агента.
-        
-        Args:
-            model (str): Название модели для OpenRouter.
-            local (bool): Если True, использует локальный Ollama вместо OpenRouter.
-            ollama_base_url (str): Базовый URL для Ollama API.
-            ollama_model (str): Название модели в Ollama.
         """
         self.local = local
         self.ollama_base_url = ollama_base_url
@@ -50,14 +45,6 @@ class LLMAgent:
     def _make_api_request(self, payload: Dict, headers: Optional[Dict] = None) -> Dict:
         """
         Универсальный метод для отправки запросов к API.
-        Поддерживает как OpenRouter, так и Ollama.
-        
-        Args:
-            payload (Dict): Тело запроса.
-            headers (Dict, optional): Заголовки запроса.
-            
-        Returns:
-            Dict: Ответ от API.
         """
         if headers is None:
             headers = {}
@@ -80,30 +67,31 @@ class LLMAgent:
     def _ask_llm_for_plan(self, query: str) -> List[Dict]:
         """
         Создает план действий, используя LLM.
-        Работает как с OpenRouter, так и с Ollama.
         """
-        # Системный промпт, который объясняет агенту его роль и формат ответа
         system_prompt = f"""
-        You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
+        You are a planning assistant. You MUST use the geocoding tool for ANY question about coordinates, cities, or locations.
 
         Available tools:
-        - **calculator**: For any math-related questions.
-        - **web_search**: For finding any information about the real world. USE ONLY RUSSIAN LANGUAGE QUERIES.
-        - **geocoding**: For getting coordinates of a place or finding a place by coordinates. 
-          Use format "coords: City Name" to get lat/lon, or "address: lat, lon" to get the name.
+        - calculator: For math only.
+        - web_search: For news and facts.
+        - geocoding: For coordinates and cities. Format: "coords: City" or "address: lat, lon".
 
-        Your response MUST be ONLY a JSON object...
-        If one or more tools are needed to answer, return JSON of this structure:
+        CRITICAL: If user asks about coordinates or city names, you MUST use geocoding tool.
+
+        Example:
+        User: "Какие координаты у Москвы?"
+        You: {{"plan": [{{"action": "geocoding", "input": "coords: Москва"}}]}}
+
+        Return ONLY valid JSON. Do not include any explanations or <think> tags.
+        If one or more tools are needed, return JSON of this structure:
         {{
-        "plan": [
-            {{"action": "tool_name", "input": "some text to pass into tool"}},
-            ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
-        ]
+          "plan": [
+            {{"action": "tool_name", "input": "some text to pass into tool"}}
+          ]
         }}
-        If no tool is needed, return an empty plan: {{"plan": []}}.
+        If no tool is needed, return: {{"plan": []}}.
         """
 
-        # Формируем запрос к API
         payload = {
             "model": self.model,
             "messages": [
@@ -113,44 +101,33 @@ class LLMAgent:
         }
         
         try:
-            # Для Ollama может потребоваться дополнительная настройка
             if self.local:
-                # Некоторые модели Ollama могут требовать параметр stream=False
                 payload["stream"] = False
             
             response_data = self._make_api_request(payload)
-            
-            # Извлекаем текстовый ответ от модели
             llm_text = response_data["choices"][0]["message"]["content"]
 
-            # Очищаем ответ от блоков кода Markdown
-            import re
-            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', llm_text, re.DOTALL)
+            # 1. КРИТИЧЕСКИ ВАЖНО: Удаляем теги рассуждений <think>...</think> от моделей Qwen
+            llm_text = re.sub(r'<think>.*?</think>', '', llm_text, flags=re.DOTALL).strip()
+
+            # 2. Ищем JSON в markdown блоках (используем жадный захват .*, а не .*?)
+            json_match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', llm_text, re.DOTALL)
             
             if json_match:
                 cleaned_json_text = json_match.group(1)
             else:
-                cleaned_json_text = llm_text
+                # 3. Запасной вариант: ищем просто первую { и последнюю } во всем тексте
+                json_match = re.search(r'(\{.*\})', llm_text, re.DOTALL)
+                cleaned_json_text = json_match.group(1) if json_match else llm_text
 
             print(f"> Ответ LLM для плана (очищенный): {cleaned_json_text}")
             
             # Пытаемся преобразовать ответ в JSON
             action_plan = json.loads(cleaned_json_text)
-            plan = action_plan.get("plan", [])
-            return plan
+            return action_plan.get("plan", [])
             
         except (json.JSONDecodeError, KeyError, Exception) as e:
             print(f"Произошла ошибка при создании плана: {e}")
-            # Пробуем альтернативный подход: извлечь JSON из текста
-            try:
-                # Ищем JSON в тексте без маркеров
-                import re
-                json_match = re.search(r'\{.*"plan".*\}', llm_text, re.DOTALL)
-                if json_match:
-                    action_plan = json.loads(json_match.group())
-                    return action_plan.get("plan", [])
-            except:
-                pass
             return []
 
     def _generate_final_response(self, user_query: str) -> str:
@@ -177,8 +154,7 @@ class LLMAgent:
         
         try:
             response_data = self._make_api_request(payload)
-            final_text = response_data["choices"][0]["message"]["content"]
-            return final_text
+            return response_data["choices"][0]["message"]["content"]
         except Exception as e:
             return f"Ошибка при генерации финального ответа. Детали: {e}"
 
@@ -193,7 +169,6 @@ class LLMAgent:
 
         if not plan:
             print("Инструменты не требуются. Генерирую ответ напрямую.")
-            # Генерируем прямой ответ через LLM
             direct_prompt = f"Ответьте на следующий вопрос кратко и информативно: {query}"
             payload = {
                 "model": self.model,
@@ -216,9 +191,8 @@ class LLMAgent:
             if tool_name in self.tools:
                 print(f"Выполняется инструмент: '{tool_name}'")
                 result = self.tools[tool_name].use(tool_input)
-                print(f"Результат: {result}...")
+                print(f"Результат: {result}")
                 
-                # Добавляем результат в историю
                 self.conversation_history.append({
                     'role': 'system',
                     'content': f"Tool {tool_name} result: {result}"
@@ -230,21 +204,16 @@ class LLMAgent:
         
         # --- Шаг 3: Генерация финального ответа ---
         print("Составляю финальный ответ...")
-        final_response = self._generate_final_response(query)
-        return final_response
+        return self._generate_final_response(query)
 
     def test_ollama_connection(self) -> bool:
         """
         Тестирует соединение с локальным Ollama сервером.
-        
-        Returns:
-            bool: True если соединение успешно, иначе False.
         """
         if not self.local:
             return False
         
         try:
-            # Проверяем доступность Ollama API
             test_url = f"{self.ollama_base_url}/v1/models"
             response = requests.get(test_url)
             return response.status_code == 200
