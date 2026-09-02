@@ -3,7 +3,8 @@ from spellchecker import SpellChecker
 
 
 class ErrorResponse(BaseModel):
-    suggestion: str
+    raw_data: str
+    suggestion: str | None
 
 
 class SpellCheckerTool:
@@ -12,11 +13,12 @@ class SpellCheckerTool:
         self.spellchecker = SpellChecker()
 
     def get_message_suggestions(self, message: str) -> list[ErrorResponse]:
-        pass
-
+        return [
+            ErrorResponse(raw_data=word, suggestion=self.spellchecker.correction(word)) for word in message.split()
+        ]
 
 def main():
-    user = input()
+    user = input("Введите текст (на англ. или русском.): ")
     spell_tool = SpellCheckerTool()
     print(spell_tool.get_message_suggestions(user))
 
