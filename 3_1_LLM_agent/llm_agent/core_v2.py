@@ -7,7 +7,8 @@ from decouple import config
 import requests
 
 from .tool_calculator import CalculatorTool
-from .tool_excelreader import ExcelReaderTool  # <-- 1. Импортируем новый tool
+from .tool_excelreader import ExcelReaderTool
+from .tool_pdfinfo import PDFInfoTool
 from .tool_websearch import WebSearchTool
 
 
@@ -38,12 +39,12 @@ class LLMAgent:
             self.url = f"{self.ollama_base_url}/v1/chat/completions"
             self.model = ollama_model
 
-        # Создаем экземпляры инструментов
-        # <-- 2. Регистрируем excel_reader в словаре инструментов
+        # Создаем экземпляры всех инструментов
         self.tools = {
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "excel_reader": ExcelReaderTool(),
+            "pdf_info": PDFInfoTool(),
         }
         self.conversation_history = []
 
@@ -79,7 +80,6 @@ class LLMAgent:
 
         Работает как с OpenRouter, так и с Ollama.
         """
-        # <-- 3. Обновляем system_prompt: добавляем описание excel_reader
         system_prompt = f"""
         You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
 
@@ -87,6 +87,7 @@ class LLMAgent:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
         - **excel_reader**: For reading data from Excel files (.xlsx, .xls) via file path or URL. Pass the file path or URL as the input.
+        - **pdf_info**: For extracting information from PDF files (metadata, page count, text content). Use it with a local file path or a URL to a PDF file.
 
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
