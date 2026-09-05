@@ -6,9 +6,9 @@ from typing import List, Dict, Optional
 
 import requests
 
-from tools.tool_calculator import CalculatorTool
-from tools.tool_spell_checker import SpellCheckerTool
-from tools.tool_websearch import WebSearchTool
+from .tools.tool_calculator import CalculatorTool
+from .tools.tool_spell_checker import SpellCheckerTool
+from .tools.tool_websearch import WebSearchTool
 
 
 # from decouple import config
@@ -69,7 +69,10 @@ class LLMAgent:
             "spell_check": SpellCheckerTool(),
         }
         self.conversation_history = []
-    
+
+    def show_tools(self) -> list[str]:
+        return list(self.tools.keys())
+
     def _make_api_request(self, payload: Dict, headers: Optional[Dict] = None) -> Dict:
         """
         Универсальный метод для отправки запросов к API.

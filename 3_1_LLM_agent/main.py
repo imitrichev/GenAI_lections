@@ -1,22 +1,27 @@
 # main.py
+from llm_agent.core_v2 import LLMAgent, ProviderConfig
+from llm_agent.settings import UserConfig
 
-from core_v2 import LLMAgent, ProviderConfig
-from settings import UserConfig
 
-
-def main():
-    """Основная функция для запуска агента."""
-    print("Простой LLM-агент с инструментами ('Калькулятор', 'Поиск в DuckDuckGo')")
-    print("-" * 70)
+def setup_provider() -> ProviderConfig:
+    """Подготавливает провайдера перед запросом"""
 
     config = UserConfig()
 
     if config.use_local_model:
-        provider = ProviderConfig.ollama(config.base_url, config.ollama_model)
+        provider = ProviderConfig.ollama(base_url=config.base_url, model=config.ollama_model)
     else:
         provider = ProviderConfig.openrouter(config.model)
+    return provider
 
-    agent = LLMAgent(provider=provider)
+
+def main():
+    """Основная функция для запуска агента"""
+
+    agent = LLMAgent(provider=setup_provider())
+
+    print(f"Простой LLM-агент с инструментами ({agent.show_tools()})")
+    print("-" * 70)
 
     # agent = LLMAgent(model = "gpt-5.4-mini")
     # agent = LLMAgent(model = "grok4.1-fast")
