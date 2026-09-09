@@ -1,0 +1,87 @@
+name: Python Tests and Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  checks: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Получение кода
+        uses: actions/checkout@v4
+
+      - name: Настройка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Запуск тестов и расчёт покрытия
+        run: |
+          pytest -v test.py \
+            --junitxml=test-results.xml \
+            --cov=xml_parser_tool \
+            --cov-report=term
+
+      - name: Публикация результатов тестов
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Результаты unit-тестов XMLParserTool
+          path: test-results.xml
+          reporter: java-junit
+
+      - name: Создание SVG-бейджа покрытия
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          COVERAGE=$(coverage report --format=total)
+          COLOR="#4c1"
+
+          if [ "$COVERAGE" -lt 50 ]; then
+            COLOR="#e05d44"
+          elif [ "$COVERAGE" -lt 80 ]; then
+            COLOR="#dfb317"
+          fi
+
+          cat > coverage.svg <<EOF
+          <svg xmlns="http://www.w3.org/2000/svg" width="138" height="20" role="img" aria-label="coverage: ${COVERAGE}%">
+            <linearGradient id="a" x2="0" y2="100%">
+              <stop offset="0" stop-opacity=".1" stop-color="#bbb"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <clipPath id="b">
+              <rect width="138" height="20" rx="3" fill="#fff"/>
+            </clipPath>
+            <g clip-path="url(#b)">
+              <path fill="#555" d="M0 0h72v20H0z"/>
+              <path fill="${COLOR}" d="M72 0h66v20H72z"/>
+              <path fill="url(#a)" d="M0 0h138v20H0z"/>
+            </g>
+            <g fill="#fff" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle">
+              <text x="36" y="15" fill="#010101" fill-opacity=".3">coverage</text>
+              <text x="36" y="14">coverage</text>
+              <text x="105" y="15" fill="#010101" fill-opacity=".3">${COVERAGE}%</text>
+              <text x="105" y="14">${COVERAGE}%</text>
+            </g>
+          </svg>
+          EOF
+
+      - name: Сохранение обновлённого бейджа
+        if: github.event_name == 'push'
+        uses: EndBug/add-and-commit@v9
+        with:
+          default_author: github_actions
+          message: "Автоматически обновить бейдж покрытия"
+          add: "coverage.svg"
