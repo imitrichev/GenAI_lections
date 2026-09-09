@@ -1,33 +1,126 @@
 import pytest
-#from unittest.mock import MagicMock, patch
-from llm_agent.core_v2 import LLMAgent
+from unittest.mock import Mock, patch
+
+from llm_agent.tool_currency_converter import CurrencyConverterTool
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    CurrencyConverterTool._cache.clear()
+
 
 # =====================================================================
-# ИНТЕГРАЦИОННЫЕ ТЕСТЫ (Запускают реальную Ollama / API)
+# ЮНИТ-ТЕСТЫ
 # =====================================================================
-# Маркируем как 'integration', чтобы их можно было отключать при быстрой проверке
+
+def test_same_currency():
+    tool = CurrencyConverterTool()
+
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "result": "success",
+        "rates": {
+            "USD": 1.0
+        }
+    }
+    mock_response.raise_for_status.return_value = None
+
+    with patch(
+        "llm_agent.tool_currency_converter.requests.get",
+        return_value=mock_response
+    ):
+        result = tool.use(100, "USD", "USD")
+
+    assert "100 USD = 100.00 USD" in result
+
+
+def test_invalid_amount():
+    tool = CurrencyConverterTool()
+
+    result = tool.use(-100, "USD", "EUR")
+
+    assert "Ошибка" in result
+    assert "Сумма не может быть отрицательной" in result
+
+
+def test_currency_conversion():
+    tool = CurrencyConverterTool()
+
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "result": "success",
+        "rates": {
+            "EUR": 0.85
+        }
+    }
+    mock_response.raise_for_status.return_value = None
+
+    with patch(
+        "llm_agent.tool_currency_converter.requests.get",
+        return_value=mock_response
+    ):
+        result = tool.use(100, "USD", "EUR")
+
+    assert "100 USD = 85.00 EUR" in result
+
+
+def test_cache():
+    tool = CurrencyConverterTool()
+
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "result": "success",
+        "rates": {
+            "EUR": 0.85
+        }
+    }
+    mock_response.raise_for_status.return_value = None
+
+    with patch(
+        "llm_agent.tool_currency_converter.requests.get",
+        return_value=mock_response
+    ) as mock_get:
+
+        result1 = tool.use(100, "USD", "EUR")
+        result2 = tool.use(200, "USD", "EUR")
+
+        assert "85.00 EUR" in result1
+        assert "170.00 EUR" in result2
+
+        mock_get.assert_called_once()
+
+
+# =====================================================================
+# ИНТЕГРАЦИОННЫЕ ТЕСТЫ
+# =====================================================================
 
 @pytest.mark.integration
-def test_calculator_query_live():
-    """Реальный запуск агента для проверки математики."""
-    # Для тестов лучше использовать локальную модель, если она поднята
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Сколько будет (5 + 3) * 2? Напиши только цифру."
-    
+def test_currency_conversion_live():
+    from llm_agent.core_v2 import LLMAgent
+
+    agent = LLMAgent(
+        local=True,
+        ollama_model="qwen3.5:0.8b"
+    )
+
+    query = "Сколько будет 100 долларов США в евро?"
     response = agent.process_query(query)
-    
-    # Проверяем, что агент смог посчитать и выдать 16
-    assert "16" in response
+
+    assert "EUR" in response or "евро" in response
+    assert "USD" in response or "доллар" in response
 
 
 @pytest.mark.integration
-def test_football_query_live():
-    """Реальный запуск агента для проверки поиска DuckDuckGo."""
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Кто выиграл последний матч Спартак-Динамо?"
-    
+def test_rub_to_usd_conversion_live():
+    from llm_agent.core_v2 import LLMAgent
+
+    agent = LLMAgent(
+        local=True,
+        ollama_model="qwen3.5:0.8b"
+    )
+
+    query = "Конвертируй 1000 рублей в доллары США."
     response = agent.process_query(query)
-    
-    # Проверяем, что в реальном ответе фигурируют названия команд
-    assert "Спартак" in response or "Spartak" in response
-    assert "Динамо" in response or "Dynamo" in response
+
+    assert "USD" in response or "доллар" in response
+    assert "RUB" in response or "руб" in response
