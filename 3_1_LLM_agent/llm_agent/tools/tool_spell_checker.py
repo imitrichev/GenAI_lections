@@ -17,7 +17,7 @@ class SpellCheckerTool:
     def get_message_language(message: str) -> str:
         """Получение языка"""
 
-        return 'en' if message.isascii() else 'ru'
+        return "en" if message.isascii() else "ru"
 
     def get_message_suggestions(self, message: str) -> list[SpellResponse]:
         if not message.strip():
@@ -27,10 +27,8 @@ class SpellCheckerTool:
         spell_checker = SpellChecker(language=language)
 
         return [
-            SpellResponse(
-                raw_data=word,
-                suggestion=spell_checker.correction(word)
-            ) for word in message.split()
+            SpellResponse(raw_data=word, suggestion=spell_checker.correction(word))
+            for word in message.split()
         ]
 
     def use(self, text: str) -> str:
