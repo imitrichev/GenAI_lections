@@ -1,0 +1,45 @@
+name: Python Unit Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests responses coverage
+    
+    - name: Run CurrencyConverterTool tests
+      run: |
+        python -m unittest test_currency_converter.py -v
+    
+    - name: Run tests with coverage
+      run: |
+        coverage run -m unittest test_currency_converter.py
+        coverage report
+        coverage xml
+    
+    # ЭТО НУЖНО ДОБАВИТЬ
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: false
