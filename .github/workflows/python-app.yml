@@ -6,55 +6,74 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
 
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # Устанавливаем зависимости из requirements.txt внутри папки 3_1_LLM_agent
-        if [ -f 3_1_LLM_agent/requirements.txt ]; then 
+
+        if [ -f 3_1_LLM_agent/requirements.txt ]; then
           pip install -r 3_1_LLM_agent/requirements.txt
         fi
-        # Устанавливаем тестовые зависимости
-        pip install pytest pytest-cov pytest-mock python-decouple requests duckduckgo-search
-    
+
+        pip install pytest pytest-cov pytest-mock python-decouple requests duckduckgo-search coverage-badge
+
     - name: Check directory structure
       run: |
         echo "=== Root directory ==="
         ls -la
+
         echo "=== 3_1_LLM_agent directory ==="
         ls -la 3_1_LLM_agent/
+
         echo "=== 3_1_LLM_agent/llm_agent directory ==="
         ls -la 3_1_LLM_agent/llm_agent/ || echo "llm_agent folder not found"
+
         echo "=== 3_1_LLM_agent/tests directory ==="
         ls -la 3_1_LLM_agent/tests/ || echo "tests folder not found"
-    
-    - name: Run unit tests (skip integration)
+
+    - name: Run unit tests and calculate coverage
       run: |
-        # Переходим в папку 3_1_LLM_agent и запускаем тесты
         cd 3_1_LLM_agent
-        # Запускаем только юнит-тесты (без интеграционных)
-        pytest tests/ -v -m "not integration" --cov=./llm_agent --cov-report=xml --cov-report=term || true
-    
-    - name: Upload coverage to Codecov (optional)
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+        pytest tests/ -v -m "not integration" \
+          --cov=./llm_agent \
+          --cov-report=term
+
+    # Бейджик создаём только при push в main/master
+    # и только в одном из трёх Python-заданий.
+    - name: Generate coverage badge
+      if: github.event_name == 'push' && matrix.python-version == '3.11'
+      run: |
+        cd 3_1_LLM_agent
+        coverage-badge -o ../coverage.svg
+
+    - name: Commit updated coverage badge
+      if: github.event_name == 'push' && matrix.python-version == '3.11'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git add coverage.svg
+
+        git diff --cached --quiet || git commit \
+          -m "Update coverage badge [skip ci]"
+
+        git push
