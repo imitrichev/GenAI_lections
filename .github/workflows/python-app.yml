@@ -1,76 +1,77 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
-name: Python application
+name: Python tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-     #- name: Lint with flake8
-     # run: |
-        # stop the build if there are Python syntax errors or undefined names
-     #   flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-     #   flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-     #- name: Setup and Run Ollama
-     # uses: imitrichev/ollama-action@v3
-     # with:
-     #   model: 'qwen3.5:0.8b'
-    - name: Download and extract Ollama manually
-      run: |
-        # Приводим архитектуру к формату amd64 / arm64
-        if [ "${{ runner.arch }}" = "X64" ]; then ARCH="amd64"; else ARCH="arm64"; fi
-        
-        # Скачивание и распаковка
-        curl -fsSL "https://ollama.com/download/ollama-linux-${ARCH}.tar.zst" -o ollama.tar.zst
-        mkdir -p .ollama-install
-        tar -C .ollama-install --zstd -xf ollama.tar.zst
-        rm ollama.tar.zst
-        
-        # Опционально: добавляем бинарник в PATH, чтобы команда `ollama` была доступна
-        echo "$(pwd)/.ollama-install/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v4
 
-    - name: Start Ollama Service and Pull Model
-      run: |
-        export OLLAMA_NUM_PARALLEL=1
-        export OLLAMA_MAX_LOADED_MODELS=1
-        
-        # Запускаем Ollama в фоновом режиме и перенаправляем логи
-        ollama serve > ollama.log 2>&1 &
-    
-        # Ждем пару секунд, пока сервер инициализируется
-        sleep 5
-    
-        # Скачиваем модель, указанную в коде теста
-        ollama pull qwen3.5:0.8b
-        
-    - name: Test with pytest
-      working-directory: ./3_1_LLM_agent
-      env:
-        PYTHONPATH: .
-      run: |
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        python -m pytest -v
-        python main.py
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: Run tests with coverage
+        run: |
+          coverage run -m pytest tests/ -v
+          coverage report -m
+
+      - name: Generate coverage badge
+        if: matrix.python-version == '3.11'
+        run: |
+          COVERAGE=$(coverage report | grep TOTAL | awk '{print $NF}' | tr -d '%')
+          echo "Coverage: $COVERAGE%"
+          COLOR="red"
+          if [ "$COVERAGE" -ge 80 ]; then COLOR="green"; fi
+          if [ "$COVERAGE" -ge 60 ] && [ "$COVERAGE" -lt 80 ]; then COLOR="yellow"; fi
+          cat > coverage.svg <<EOF
+          <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+            <linearGradient id="b" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <mask id="a">
+              <rect width="120" height="20" rx="3" fill="#fff"/>
+            </mask>
+            <g mask="url(#a)">
+              <path fill="#555" d="M0 0h60v20H0z"/>
+              <path fill="$COLOR" d="M60 0h60v20H60z"/>
+              <path fill="url(#b)" d="M0 0h120v20H0z"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+              <text x="30" y="15" fill="#010101" fill-opacity=".3">coverage</text>
+              <text x="30" y="14">coverage</text>
+              <text x="90" y="15" fill="#010101" fill-opacity=".3">$COVERAGE%</text>
+              <text x="90" y="14">$COVERAGE%</text>
+            </g>
+          </svg>
+          EOF
+
+      - name: Commit coverage badge
+        if: matrix.python-version == '3.11'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add coverage.svg
+          git diff --staged --quiet || git commit -m "Update coverage badge [skip ci]"
+          git push || echo "No changes to push"
