@@ -22,9 +22,26 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest requests
+          pip install pytest pytest-cov requests
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: 3_1_LLM_agent
         run: |
-          python -m pytest -v
+          python -m pytest -v --cov=llm_agent.tool_weather --cov-report=json:coverage.json
+
+      - name: Get coverage percentage
+        working-directory: 3_1_LLM_agent
+        run: |
+          COVERAGE=$(python -c "import json; print(round(json.load(open('coverage.json'))['totals']['percent_covered']))")
+          echo "COVERAGE=${COVERAGE}%" >> $GITHUB_ENV
+
+      - name: Update coverage badge
+        if: github.event_name == 'push'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 828ce4dd46d90be403ccfa95bf90979d
+          filename: GenAI_lections_EB_coverage.json
+          label: Test Coverage
+          message: ${{ env.COVERAGE }}
+          color: green
