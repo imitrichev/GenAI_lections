@@ -1,3 +1,4 @@
+
 # llm_agent/core.py
 
 import requests
@@ -8,6 +9,7 @@ from decouple import config
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
 from .tool_pdfinfo import PDFInfoTool
+from .tool_wikipedia import WikipediaTool
 
 class LLMAgent:
     """
@@ -44,6 +46,7 @@ class LLMAgent:
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "pdf_info": PDFInfoTool(),
+            "wikipedia": WikipediaTool(), 
         }
         self.conversation_history = []
     
