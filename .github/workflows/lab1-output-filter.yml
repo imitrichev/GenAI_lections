@@ -1,0 +1,65 @@
+name: Lab1 OutputFilter tests
+
+on:
+  push:
+    paths:
+      - "lab1_output_filter/**"
+      - ".github/workflows/lab1-output-filter.yml"
+  pull_request:
+    paths:
+      - "lab1_output_filter/**"
+      - ".github/workflows/lab1-output-filter.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./lab1_output_filter
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        env:
+          PYTHONPATH: .
+        run: python -m pytest tests -v
+
+  coverage-badge:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./lab1_output_filter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest-cov coverage-badge
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: .
+        run: python -m pytest --cov=output_filter --cov-report=term-missing tests
+      - name: Generate coverage badge
+        run: coverage-badge -f -o coverage.svg
+      - name: Commit updated badge
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update coverage badge [skip ci]"
+          file_pattern: lab1_output_filter/coverage.svg
