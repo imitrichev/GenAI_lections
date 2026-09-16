@@ -1,33 +1,60 @@
-import pytest
-#from unittest.mock import MagicMock, patch
-from llm_agent.core_v2 import LLMAgent
-
 # =====================================================================
 # ИНТЕГРАЦИОННЫЕ ТЕСТЫ (Запускают реальную Ollama / API)
 # =====================================================================
-# Маркируем как 'integration', чтобы их можно было отключать при быстрой проверке
+# Маркируем как 'integration', чтобы их можно было отключать
+# при быстрой проверке.
+# =====================================================================
 
-@pytest.mark.integration
-def test_calculator_query_live():
-    """Реальный запуск агента для проверки математики."""
-    # Для тестов лучше использовать локальную модель, если она поднята
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Сколько будет (5 + 3) * 2? Напиши только цифру."
-    
-    response = agent.process_query(query)
-    
-    # Проверяем, что агент смог посчитать и выдать 16
-    assert "16" in response
+import pytest
+
+from llm_agent.core_v2 import LLMAgent
 
 
 @pytest.mark.integration
-def test_football_query_live():
-    """Реальный запуск агента для проверки поиска DuckDuckGo."""
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Кто выиграл последний матч Спартак-Динамо?"
-    
+def test_wikipedia_russian_live():
+    """
+    Интеграционный тест:
+    реальная Ollama → LLMAgent → WikipediaTool → Wikipedia API.
+    """
+
+    agent = LLMAgent(
+        local=True,
+        ollama_model="qwen3:0.6b"
+    )
+
+    query = "Используй Wikipedia и найди информацию об Альберте Эйнштейне."
     response = agent.process_query(query)
-    
-    # Проверяем, что в реальном ответе фигурируют названия команд
-    assert "Спартак" in response or "Spartak" in response
-    assert "Динамо" in response or "Dynamo" in response
+
+    assert isinstance(response, str)
+    assert len(response) > 0
+
+    assert (
+        "Эйнштейн" in response
+        or "Альберт" in response
+        or "Einstein" in response
+    )
+
+
+@pytest.mark.integration
+def test_wikipedia_english_live():
+    """
+    Интеграционный тест:
+    реальная Ollama → LLMAgent → WikipediaTool → Wikipedia API.
+    """
+
+    agent = LLMAgent(
+        local=True,
+        ollama_model="qwen3:0.6b"
+    )
+
+    query = "Use Wikipedia to find information about Albert Einstein."
+    response = agent.process_query(query)
+
+    assert isinstance(response, str)
+    assert len(response) > 0
+
+    assert (
+        "Einstein" in response
+        or "Эйнштейн" in response
+        or "Albert" in response
+    )

@@ -8,6 +8,7 @@ from decouple import config
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
 from .tool_pdfinfo import PDFInfoTool
+from .tool_wikipedia import WikipediaTool
 
 class LLMAgent:
     """
@@ -44,6 +45,7 @@ class LLMAgent:
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "pdf_info": PDFInfoTool(),
+            "wikipedia": WikipediaTool(),
         }
         self.conversation_history = []
     
@@ -89,6 +91,7 @@ class LLMAgent:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
         - **pdf_info**: For extracting information from PDF files (metadata, page count, text content). Use it with a local file path or a URL to a PDF file.
+        - - **wikipedia**: For searching encyclopedic information and getting a short extract from Wikipedia. Supports Russian and English. Use the format "<topic> | <language>", where <language> is "ru" or "en" and <topic> MUST be taken from the user's own request — never reuse the placeholder text below, it is only a template: "<topic> | ru" (Russian topic) or "<topic> | en" (English topic).
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
         {{
