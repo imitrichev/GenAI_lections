@@ -7,3 +7,4 @@ pypdf
 pdfplumber
 Pillow
 pytesseract
+pytest-cov
