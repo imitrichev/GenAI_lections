@@ -45,7 +45,7 @@ class LLMAgent:
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "pdf_info": PDFInfoTool(),
-            "sentimet_analyzer": SentimentAnalyzerTool(),
+            "sentiment_analyzer": SentimentAnalyzerTool(),
         }
         self.conversation_history = []
     
