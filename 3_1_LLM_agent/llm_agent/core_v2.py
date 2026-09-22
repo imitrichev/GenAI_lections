@@ -8,6 +8,7 @@ from decouple import config
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
 from .tool_pdfinfo import PDFInfoTool
+from .tool_todolist import TodoListTool
 
 class LLMAgent:
     """
@@ -44,6 +45,7 @@ class LLMAgent:
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "pdf_info": PDFInfoTool(),
+            "todo_list": TodoListTool()
         }
         self.conversation_history = []
     
@@ -83,21 +85,34 @@ class LLMAgent:
         Работает как с OpenRouter, так и с Ollama.
         """
         # Системный промпт, который объясняет агенту его роль и формат ответа
-        system_prompt = f"""
-        You are a helpful AI planning assistant. Analyze the user's request and decide if you need to use any tools.
+        system_prompt = """
+        You are a helpful AI planning assistant. Analyze the user's request and decide which tools to use.
+
         Available tools:
-        - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
-        - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
-        - **pdf_info**: For extracting information from PDF files (metadata, page count, text content). Use it with a local file path or a URL to a PDF file.
-        Your response MUST be ONLY a JSON object of the following format.
-        If one or more tools are needed to answer, return JSON of this structure:
-        {{
-        "plan": [
-            {{"action": "tool_name", "input": "some text to pass into tool"}},
-            ... //MORE ACTIONS IF NEEDED SEVERAL TOOLS. ONE ACTION FOR ONE TOOL CALL
-        ]
-        }}
-        If no tool is needed, return an empty plan: {{"plan": []}}.
+        - **calculator**: For math questions. Input: a math expression.
+        - **web_search**: For real-world facts and current events. Input: a search query IN RUSSIAN.
+        - **pdf_info**: For PDF files. Input: a local path or URL.
+        - **todo_list**: For managing the user's todo list. Input MUST be a string like "(command, task_name / task_id)".
+        Commands: add, delete, mark (toggles status), list.
+        Examples of CORRECT input values: "(add, Buy bread)", "(mark, 2)", "(delete, Buy bread)", "(list)".
+
+        Your response MUST be ONLY a JSON object. No explanations, no markdown, no comments.
+
+        Format:
+        {"plan": [{"action": "TOOL_NAME", "input": "ARGUMENT"}, ...]}
+
+        IMPORTANT: "action" is the TOOL NAME (calculator, web_search, pdf_info, todo_list).
+        "input" is the ARGUMENT passed to that tool.
+        Do NOT put the argument into "action".
+
+        WRONG: {"action": "(delete, 1)", "input": ""}
+        RIGHT: {"action": "todo_list", "input": "(delete, 1)"}
+
+        If no tool is needed, return: {"plan": []}
+
+        Example:
+        User: "Use todo_list to delete task id 1, then mark task id 2, then show the list."
+        Response: {"plan": [{"action": "todo_list", "input": "(delete, 1)"}, {"action": "todo_list", "input": "(mark, 2)"}, {"action": "todo_list", "input": "(list)"}]}
         """
 
         # Формируем запрос к API
