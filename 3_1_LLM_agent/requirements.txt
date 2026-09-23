@@ -3,5 +3,8 @@ requests
 python-decouple
 ddgs
 pytest
+pytest-cov
+genbadge[coverage]==1.1.3
 pypdf
 pdfplumber
+langdetect
