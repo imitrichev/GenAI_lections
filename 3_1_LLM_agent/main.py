@@ -10,7 +10,7 @@ def main():
     print("-" * 70)
 
     # Создаем агента в локальном режиме (Ollama)
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
+    agent = LLMAgent(local=True, ollama_model="qwen3:0.6b")
 
     # Создаем тестовый QR-код, если его нет
     if not os.path.exists("test_qr.png"):

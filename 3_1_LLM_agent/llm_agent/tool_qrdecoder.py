@@ -28,7 +28,7 @@ class QRDecoderTool:
         try:
             # Загружаем изображение
             if input_data.startswith(('http://', 'https://')):
-                response = requests.get(input_data)
+                response = requests.get(input_data, timeout=10)
                 response.raise_for_status()
                 image = Image.open(BytesIO(response.content))
             else:
