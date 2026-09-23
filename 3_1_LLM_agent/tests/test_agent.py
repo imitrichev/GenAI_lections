@@ -5,29 +5,78 @@ from llm_agent.core_v2 import LLMAgent
 # =====================================================================
 # ИНТЕГРАЦИОННЫЕ ТЕСТЫ (Запускают реальную Ollama / API)
 # =====================================================================
-# Маркируем как 'integration', чтобы их можно было отключать при быстрой проверке
 
 @pytest.mark.integration
-def test_calculator_query_live():
-    """Реальный запуск агента для проверки математики."""
-    # Для тестов лучше использовать локальную модель, если она поднята
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Сколько будет (5 + 3) * 2? Напиши только цифру."
-    
+def test_todo_add_live():
+    """Реальный запуск агента: добавление задачи в todo-лист."""
+    agent = LLMAgent(local=True, ollama_model="qwen3.5:2b")
+    query = "Используй инструмент todo_list и добавь задачу 'Купить хлеб'"
+
     response = agent.process_query(query)
-    
-    # Проверяем, что агент смог посчитать и выдать 16
-    assert "16" in response
+
+
+    assert "добавлен" in response.lower() or "add" in response.lower()
 
 
 @pytest.mark.integration
-def test_football_query_live():
-    """Реальный запуск агента для проверки поиска DuckDuckGo."""
-    agent = LLMAgent(local=True, ollama_model="qwen3.5:0.8b")
-    query = "Кто выиграл последний матч Спартак-Динамо?"
-    
+def test_todo_list_live():
+    """Реальный запуск агента: вывод списка задач."""
+    agent = LLMAgent(local=True, ollama_model="qwen3.5:2b")
+    query = "Используй инструмент todo_list и покажи список задач"
+
     response = agent.process_query(query)
-    
-    # Проверяем, что в реальном ответе фигурируют названия команд
-    assert "Спартак" in response or "Spartak" in response
-    assert "Динамо" in response or "Dynamo" in response
+
+
+    lower = response.lower()
+    assert "список" in lower or "задач" in lower or "пуст" in lower
+
+
+@pytest.mark.integration
+def test_todo_delete_live():
+    """Реальный запуск агента: удаление задачи по id."""
+    agent = LLMAgent(local=True, ollama_model="qwen3.5:2b")
+
+
+    agent.process_query("Используй инструмент todo_list и добавь задачу 'Тестовая задача'")
+
+    query = "Используй инструмент todo_list и удали задачу с айди 1"
+    response = agent.process_query(query)
+
+    lower = response.lower()
+    assert "удал" in lower or "delete" in lower
+
+
+@pytest.mark.integration
+def test_todo_mark_live():
+    """Реальный запуск агента: toggle отметки задачи по id."""
+    agent = LLMAgent(local=True, ollama_model="qwen3.5:2b")
+
+    # Создаём задачу для отметки
+    agent.process_query("Используй инструмент todo_list и добавь задачу 'Отметить меня'")
+
+    query = "Используй инструмент todo_list и отметь задачу с айди 1"
+    response = agent.process_query(query)
+
+    lower = response.lower()
+  
+    assert "отмеч" in lower or "выполн" in lower or "mark" in lower
+
+
+@pytest.mark.integration
+def test_todo_multi_step_live():
+    """Реальный запуск агента: многошаговый сценарий (delete + mark + list)."""
+    agent = LLMAgent(local=True, ollama_model="qwen3.5:2b")
+
+    # Готовим данные: две задачи
+    agent.process_query("Используй инструмент todo_list и добавь задачу 'Первая'")
+    agent.process_query("Используй инструмент todo_list и добавь задачу 'Вторая'")
+
+    query = (
+        "Используй инструмент todo_list и удали оттуда задачу с айди 1. "
+        "Потом отметь задачу с айди 2. Потом выведи мне список задач"
+    )
+    response = agent.process_query(query)
+
+    lower = response.lower()
+
+    assert "список" in lower or "задач" in lower
