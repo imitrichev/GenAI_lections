@@ -2,12 +2,14 @@
 
 import requests
 import json
+import re
 from typing import List, Dict, Optional
 from decouple import config
 
 from .tool_calculator import CalculatorTool
 from .tool_websearch import WebSearchTool
 from .tool_pdfinfo import PDFInfoTool
+from .tool_phone_number import PhoneNumberTool
 
 class LLMAgent:
     """
@@ -16,7 +18,7 @@ class LLMAgent:
     """
 
     def __init__(self, model: str = "tngtech/deepseek-r1t2-chimera", local: bool = False, 
-                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen3:0.6b"):
+                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen3.5:0.8b"):
         """
         Инициализирует агента.
         
@@ -44,6 +46,7 @@ class LLMAgent:
             "calculator": CalculatorTool(),
             "web_search": WebSearchTool(),
             "pdf_info": PDFInfoTool(),
+            "phone_number": PhoneNumberTool(),
         }
         self.conversation_history = []
     
@@ -89,6 +92,7 @@ class LLMAgent:
         - **calculator**: For any math-related questions (numbers, calculations). Use it with the full expression.
         - **web_search**: For finding any information about the real world (current events, facts, definitions). Use it with the user's question or a clear search query. USE ONLY RUSSIAN LANGUAGE QUERIES in this tool.
         - **pdf_info**: For extracting information from PDF files (metadata, page count, text content). Use it with a local file path or a URL to a PDF file.
+        - **phone_number**: For validating and normalizing phone numbers. Pass only the phone number, including its country code when known.
         Your response MUST be ONLY a JSON object of the following format.
         If one or more tools are needed to answer, return JSON of this structure:
         {{
@@ -112,8 +116,9 @@ class LLMAgent:
         try:
             # Для Ollama может потребоваться дополнительная настройка
             if self.local:
-                # Некоторые модели Ollama могут требовать параметр stream=False
+                # Отключаем streaming и reasoning, чтобы ответ Qwen попадал в content.
                 payload["stream"] = False
+                payload["reasoning_effort"] = "none"
             
             response_data = self._make_api_request(payload)
             
@@ -134,7 +139,17 @@ class LLMAgent:
             # Пытаемся преобразовать ответ в JSON
             action_plan = json.loads(cleaned_json_text)
             plan = action_plan.get("plan", [])
-            return plan
+            if not isinstance(plan, list):
+                return []
+
+            valid_steps = [
+                step
+                for step in plan
+                if isinstance(step, dict)
+                and isinstance(step.get("action"), str)
+                and isinstance(step.get("input"), str)
+            ]
+            return valid_steps if len(valid_steps) == len(plan) else []
             
         except (json.JSONDecodeError, KeyError, Exception) as e:
             print(f"Произошла ошибка при создании плана: {e}")
@@ -149,6 +164,50 @@ class LLMAgent:
             except:
                 pass
             return []
+
+    def _fallback_plan(self, query: str) -> List[Dict]:
+        """Выбирает очевидный инструмент, если малая LLM вернула неверный план."""
+        lowered_query = query.lower()
+
+        phone_match = re.search(r"\+?[\d\s()\-]{7,}", query)
+        if phone_match and any(
+            hint in lowered_query for hint in ("телефон", "номер", "phone")
+        ):
+            return [
+                {"action": "phone_number", "input": phone_match.group().strip()}
+            ]
+
+        if re.search(r"\d\s*(?:[+*/]|-(?=\s*\d))", query):
+            expression_candidates = [
+                part.strip()
+                for part in re.findall(r"[\d\s()+\-*/.]+", query)
+                if re.search(r"\d", part) and re.search(r"[+*/-]", part)
+            ]
+            if expression_candidates:
+                return [
+                    {
+                        "action": "calculator",
+                        "input": max(expression_candidates, key=len),
+                    }
+                ]
+
+        if ".pdf" in lowered_query:
+            return [{"action": "pdf_info", "input": query}]
+
+        current_fact_hints = (
+            "последн",
+            "кто выиграл",
+            "новост",
+            "погода",
+            "сейчас",
+            "сегодня",
+            "current",
+            "latest",
+        )
+        if any(hint in lowered_query for hint in current_fact_hints):
+            return [{"action": "web_search", "input": query}]
+
+        return []
 
     def _generate_final_response(self, user_query: str) -> str:
         """
@@ -171,6 +230,7 @@ class LLMAgent:
         
         if self.local:
             payload["stream"] = False
+            payload["reasoning_effort"] = "none"
         
         try:
             response_data = self._make_api_request(payload)
@@ -186,7 +246,10 @@ class LLMAgent:
         print(f"Агент анализирует ваш запрос... (Режим: {'локальный Ollama' if self.local else 'OpenRouter'})")
         
         # --- Шаг 1: Планирование ---
-        plan = self._ask_llm_for_plan(query)
+        plan = self._fallback_plan(query)
+
+        if not plan:
+            plan = self._ask_llm_for_plan(query)
 
         if not plan:
             print("Инструменты не требуются. Генерирую ответ напрямую.")
@@ -198,6 +261,7 @@ class LLMAgent:
             }
             if self.local:
                 payload["stream"] = False
+                payload["reasoning_effort"] = "none"
             try:
                 response_data = self._make_api_request(payload)
                 return response_data["choices"][0]["message"]["content"]
@@ -206,6 +270,7 @@ class LLMAgent:
 
         # --- Шаг 2: Исполнение плана ---
         print(f"План действий: {plan}")
+        tool_results = []
         for step in plan:
             tool_name = step.get('action')
             tool_input = step.get('input')
@@ -214,6 +279,7 @@ class LLMAgent:
                 print(f"Выполняется инструмент: '{tool_name}'")
                 result = self.tools[tool_name].use(tool_input)
                 print(f"Результат: {result}...")
+                tool_results.append((tool_name, result))
                 
                 # Добавляем результат в историю
                 self.conversation_history.append({
@@ -225,6 +291,13 @@ class LLMAgent:
                 print(error_msg)
                 self.conversation_history.append({'role': 'system', 'content': error_msg})
         
+        # Детерминированные инструменты уже сформировали точный ответ. Повторная
+        # генерация малой LLM может исказить число или нормализованный телефон.
+        if tool_results and all(
+            name in {"calculator", "phone_number"} for name, _ in tool_results
+        ):
+            return "\n".join(result for _, result in tool_results)
+
         # --- Шаг 3: Генерация финального ответа ---
         print("Составляю финальный ответ...")
         final_response = self._generate_final_response(query)
