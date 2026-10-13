@@ -1,1 +1,5 @@
 .env
+
+test_sandbox/
+__pycache__/
+*.pyc
